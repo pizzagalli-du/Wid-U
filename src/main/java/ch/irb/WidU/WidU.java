@@ -1,12 +1,17 @@
 /**************************************************************************
  *
- * Copyright (C) 2021
+ * Copyright (C) 2022   Paola Antonello, 
+ *                      Diego Morone, 
+ *                      Marcus Thelen,
+ *                      Rolf Krause,
+ *                      Diego Ulisse Pizzagalli  
  * 
- *  
  *	  Institute for Research in Biomedicine
  *	  Switzerland
- *	
  *
+ *    Euler Institute, Università della Svizzera Italiana,
+ *    Switzerland
+ * 	
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
@@ -33,40 +38,83 @@
 
 package ch.irb.WidU;
 
-
 import ij.IJ;
 import ij.ImageJ;
 import ij.ImagePlus;
-import ij.gui.GenericDialog;
+import ij.Prefs;
 import ij.plugin.PlugIn;
 
+import java.io.File;
+import java.util.Vector;
 
 /**
+ * ImageJ plugin implementation of Wid-U transmitted light to pseudofluorescence in wide migration chambers.
  * 
+ * This plugin 
+ * - upscales and divides an open image into tiles, 
+ * - establishes an SSH connection with a server, 
+ * - sends the images,
+ * - executes a command to perform U-Net segmentation
+ * - sends back the images
+ * - stiches the tiles into a segmented image 
  * 
+ * @author Diego Morone
  */
 public class WidU implements PlugIn {
 
     @Override
 	public void run(String arg) {
+        // Check for existing configuration
+        Boolean settingsok = Boolean.parseBoolean(Prefs.get("ch.irb.widu.settingsok", "false"));
+        if (!settingsok) IJ.runPlugIn(WidUSettings.class.getName(), "");
 
-        if (!showDialog()) return;
+        String hostname = Prefs.get("ch.irb.widu.hostname", "localhost");
+        Integer port = Integer.parseInt(Prefs.get("ch.irb.widu.port", "22"));
+        String username = Prefs.get("ch.irb.widu.username", "");
+        String cachefolder = Prefs.get("ch.irb.widu.cachefolder", "");
 
-    }
+        // Integer tilesizex = Integer.parseInt(Prefs.get("ch.irb.widu.tilesizex", "10"));
+        // Integer tilesizey = Integer.parseInt(Prefs.get("ch.irb.widu.tilesizey", "10"));
 
-    /**
-     * GUI for this plugin
-     * 
-     * @return true is everything goes fine, false if canceled
-     */
-    private boolean showDialog() {
-        GenericDialog gd = new GenericDialog("Wid-U");
+        // Load current image
+        //ImagePlus raw = IJ.getImage();
 
-        gd.addMessage("test");
+        // Determine # of tiles x,y
+        // Integer width = raw.getWidth();
+        // Integer height = raw.getHeight();
 
-        gd.showDialog();
+        // Integer ntilesx = width/tilesizex;
+        // Integer ntilesy = height/tilesizey;
 
-        return true;
+        // Vector<File> rawtiles  = createBlob();
+
+        SSHConnection ssh = new SSHConnection();
+        ssh.testsend(hostname, port, username, cachefolder);
+
+        /* TODO: manage exceptions if 
+            * 1. no space left on remote: delete all and terminate
+            * 2. no space left on local: delete all and terminate
+            * 3. segmentation aborts: delete all and terminate
+            * 4. connection lost: abort and exit
+        **/
+
+        // // TODO: send vector<file> through ssh
+        // ssh.sendBlob(rawtiles, cachefolder);
+
+        // // TODO: execute command to run Tensorflow
+        // String command = "";
+        // ssh.exec(rawtiles, command);
+
+        // // TODO: get back segmented files
+        // Vector<File> segmentedfiles = ssh.getremoteBlob(id);
+
+        // // TODO: delete raw and segmented from server
+        // ssh.deleteremoteBlob(id);
+
+        // // TODO: create back mosaic
+        // ImagePlus result = tileBlob(segmentedfiles);
+        // result.show();
+
     }
 
     /**
