@@ -17,33 +17,21 @@
 	<version>0.1.0</version>
 
 	<name>WidU</name>
-	<description>Wid-U cell segmentation in wide migration chambers using pseudofluorescence.</description>
-	<url>https://TODO.todo/</url>
-	<inceptionYear>2021</inceptionYear>
+	<description>Wid-U transmitted light to pseudofluorescence in wide migration chambers.</description>
+	<url>https://github.com/pizzagalli-du/Wid-U</url>
+	<inceptionYear>2022</inceptionYear>
 	<organization>
 		<name>Institute for Research in Biomedicine</name>
-		<url>http://www.irb.ch/</url>
+		<url>http://www.irb.usi.ch/</url>
 	</organization>
 	<licenses>
 		<license>
-			<name>TODO GNU GENERAL PUBLIC LICENSE v3</name>
+			<name>GNU GENERAL PUBLIC LICENSE v3</name>
 			<distribution>repo</distribution>
 		</license>
 	</licenses>
 
 	<developers>
-		<developer>
-			<id>dmorone</id>
-			<name>Diego Morone</name>
-			<url>https://www.irb.usi.ch/irb-people/morone-diego/?id=8939</url>
-			<roles>
-				<role>developer</role>
-				<role>debugger</role>
-				<role>reviewer</role>
-				<role>support</role>
-				<role>maintainer</role>
-			</roles>
-		</developer>
 		<developer>
 			<id>dup</id>
 			<name>Diego Ulisse Pizzagalli</name>
@@ -58,19 +46,29 @@
 				<role>maintainer</role>
 			</roles>
 		</developer>
-		<developer>
-			<id>TODO</id>
-			<name>Paola Antonello</name>
+	</developers>
+	<contributors>
+		<contributor>
+			<name>Diego Morone</name>
 			<url>https://www.irb.usi.ch/irb-people/morone-diego/?id=8939</url>
+			<roles>
+				<role>developer</role>
+				<role>debugger</role>
+				<role>reviewer</role>
+				<role>support</role>
+				<role>maintainer</role>
+			</roles>
+		</contributor>
+		<contributor>
+			<name>Paola Antonello</name>
+			<url>https://www.irb.usi.ch/irb-people/morone-diego/?id=8993</url>
 			<roles>
 				<role>debugger</role>
 				<role>reviewer</role>
 				<role>support</role>
 				<role>maintainer</role>
 			</roles>
-		</developer>
-	</developers>
-	<contributors>
+		</contributor>
 		<contributor>
 			<name>Marcus Thelen</name>
 			<url>https://www.irb.usi.ch/irb-people/thelen-marcus/?id=8975</url>
@@ -95,14 +93,14 @@
 	</mailingLists>
 
 	<scm>
-		<connection>scm:git:git://github.com/TODO/todo.git</connection>
-		<developerConnection>scm:git:git@github.com:TODO/todo.git</developerConnection>
+		<connection>scm:git:git://github.com/pizzagalli-du/Wid-U.git</connection>
+		<developerConnection>scm:git:git@github.com/pizzagalli-du/Wid-U.git</developerConnection>
 		<tag>HEAD</tag>
-		<url>https://github.com/TODO/todo.git</url>
+		<url>https://github.com/pizzagalli-du/Wid-U.git</url>
 	</scm>
 	<issueManagement>
 		<system>GitHub Issues</system>
-		<url>https://github.com/TODO/issues</url>
+		<url>https://github.com/pizzagalli-du/Wid-U/issues</url>
 	</issueManagement>
 	<ciManagement>
 		<system>None</system>
@@ -114,10 +112,15 @@
             <version>1.52n</version>
             <type>jar</type>
         </dependency>
+		<dependency>
+            <groupId>com.jcraft</groupId>
+            <artifactId>jsch</artifactId>
+            <type>jar</type>
+        </dependency>
     </dependencies>
     <properties>
-		<package-name>ch.irb</package-name>
-		<main-class>ch.irb.WidU</main-class>
+		<package-name>ch.irb.WidU</package-name>
+		<main-class>ch.irb.WidU.WidU</main-class>
 		<license.licenseName>gpl_3</license.licenseName>
 		<license.copyrightOwners>Institute for Research in Biomedicine</license.copyrightOwners>
 	    <maven.compiler.source>1.8</maven.compiler.source>
