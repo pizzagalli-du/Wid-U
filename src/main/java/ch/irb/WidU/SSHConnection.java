@@ -42,10 +42,7 @@ import ij.IJ;
 import ij.Prefs;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.InputStream;
-
-import java.util.Vector;
 
 import javax.swing.JOptionPane;
 import javax.swing.JPasswordField;
