@@ -9,6 +9,9 @@
  *	  Institute for Research in Biomedicine
 *	  Switzerland
 *
+*    Graduate School for Cellular and Molecular Sciences,
+*    University of Bern, Switzerland
+*
 *    Euler Institute, Università della Svizzera Italiana,
 *    Switzerland
 * 	
@@ -57,74 +60,166 @@ import com.jcraft.jsch.*;
  */
 public class SSHConnection {
 
+    private Session session;
+    private String folder;
 
-    /**
-     * 
-     * @param hostname
-     * @param port
-     * @param username
-     * @return
-     */
-    public boolean testconnect(String hostname, Integer port, String username) {
-
-        Session session = null;
-        try {
-            session = connect(hostname, port, username);
+    public SSHConnection(String hostname, Integer port, String username, String folder) {
+        try{ 
+            this.session = newsession(hostname, port, username);
         } catch (Exception e) {
-            IJ.error("Error during connection: "+ e.getMessage());
-            return false;
-        } finally {
-            disconnect(session);
+            IJ.error("Wid-U","Error during connection: "+ e.getMessage());
         }
-
-        IJ.log("Test OK");
-        return true;
+        this.folder = folder;
     }
 
-    /**
-     * 
-     * @param hostname
-     * @param port
-     * @param username
-     * @param remotefolder
-     * @return
-     */
-    public boolean testsend(String hostname, Integer port, String username, String remotefolder) {
+    public void sendBlob(Blob blob) {
 
-        Session session = null;
         Channel channel = null;
         ChannelSftp channelSftp = null;
 
-        String s = "Hello world";
+        String s = "test\n";
         String remotepath = "test.txt";
         InputStream send = new ByteArrayInputStream(s.getBytes());
 
         try {
-
-            session = connect(hostname, port, username);
+            
             channel = session.openChannel("sftp");
             channel.connect();
     
             channelSftp = (ChannelSftp) channel;
               
-            channelSftp.cd(remotefolder);
+            channelSftp.cd(folder);
+
+            // TODO: send vector<file> through ssh
+            // TODO: no space left on remote: delete all and terminate
+
             channelSftp.put(send, remotepath);
-            channelSftp.rm(remotepath);
 
         } catch (Exception e) {
-            IJ.error("Send test failed. Error: "+ e.getMessage());
+            IJ.error("Wid-U", "File transfer test failed. Error: "+ e.getMessage());
         } finally {
             channelSftp.exit();
             IJ.log("SFTP Channel exited.");
             channel.disconnect();
             IJ.log("Channel disconnected.");
-            disconnect(session);
+        }
+        IJ.log("File sent OK");
+
+
+    }
+
+    public void exec(String id, String command) {
+        // TODO: execute command to run Tensorflow
+        // TODO: segmentation aborts: delete all and terminate
+        // TODO: every 5s check for file UUID.done. If there, collect segmented files
+        
+    }
+
+    public void deleteremoteBlob(String id) {
+        Channel channel = null;
+        ChannelSftp channelSftp = null;
+
+        String remotepath = "test.txt";
+
+        try {
+            
+            channel = session.openChannel("sftp");
+            channel.connect();
+    
+            channelSftp = (ChannelSftp) channel;
+              
+            channelSftp.cd(folder);
+
+            // TODO: rm vector<file> through ssh
+
+            channelSftp.rm(remotepath);
+
+        } catch (Exception e) {
+            IJ.error("Wid-U", "File transfer test failed. Error: "+ e.getMessage());
+        } finally {
+            channelSftp.exit();
+            IJ.log("SFTP Channel exited.");
+            channel.disconnect();
+            IJ.log("Channel disconnected.");
+        }
+        IJ.log("File sent OK");
+    }
+
+    public Blob getremoteBlob(String id) {
+        Blob blob = null;
+        Channel channel = null;
+        ChannelSftp channelSftp = null;
+
+        try {
+            
+            channel = session.openChannel("sftp");
+            channel.connect();
+    
+            channelSftp = (ChannelSftp) channel;
+              
+            channelSftp.cd(folder);
+
+            // TODO: send vector<file> through ssh
+            //channelSftp.get();
+
+        } catch (Exception e) {
+            IJ.error("Wid-U", "File transfer test failed. Error: "+ e.getMessage());
+        } finally {
+            channelSftp.exit();
+            IJ.log("SFTP Channel exited.");
+            channel.disconnect();
+            IJ.log("Channel disconnected.");
+        }
+        IJ.log("File sent OK");
+        return blob;
+    }
+
+    /**
+     * 
+     * @param remotefolder
+     * @return
+     */
+    public boolean testsend() {
+
+        Channel channel = null;
+        ChannelSftp channelSftp = null;
+
+        String s = "test\n";
+        String remotepath = "test.txt";
+        InputStream send = new ByteArrayInputStream(s.getBytes());
+
+        try {
+            
+            channel = session.openChannel("sftp");
+            channel.connect();
+    
+            channelSftp = (ChannelSftp) channel;
+              
+            channelSftp.cd(folder);
+            channelSftp.put(send, remotepath);
+            channelSftp.rm(remotepath);
+
+        } catch (Exception e) {
+            IJ.error("Wid-U", "File transfer test failed. Error: "+ e.getMessage());
+        } finally {
+            channelSftp.exit();
+            IJ.log("SFTP Channel exited.");
+            channel.disconnect();
+            IJ.log("Channel disconnected.");
         }
         IJ.log("File sent OK");
         return true;
     }
 
-        /**
+    /**
+     * Disconnect open session
+     */
+    public void disconnect() {
+        session.disconnect();
+        IJ.log("SSH connection terminated");
+    }
+  
+    /**
      * 
      * @param hostname
      * @param port
@@ -132,7 +227,7 @@ public class SSHConnection {
      * @return
      * @throws JSchException
      */
-    private Session connect(String hostname, Integer port, String username) throws JSchException {
+    private Session newsession(String hostname, Integer port, String username) throws JSchException {
         IJ.log("SSH connection to "+hostname+", port: "+port+" with username "+username);
 
         JSch jsch=new JSch();
@@ -180,21 +275,6 @@ public class SSHConnection {
 
     }
 
-    /**
-     * 
-     * @param session
-     */
-    private void disconnect(Session session) {
-        session.disconnect();
-        IJ.log("SSH connection terminated");
-    }
-
-
-    /**
-     * Password prompt for SSH connection
-     * 
-     * @return true is everything goes fine
-     */
     private String promptPassphrase(String message){
         JTextField passphraseField=(JTextField)new JPasswordField(20);
         String passphrase = null;

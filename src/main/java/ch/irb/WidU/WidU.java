@@ -8,6 +8,9 @@
  * 
  *	  Institute for Research in Biomedicine
  *	  Switzerland
+*
+*    Graduate School for Cellular and Molecular Sciences,
+*    University of Bern, Switzerland
  *
  *    Euler Institute, Università della Svizzera Italiana,
  *    Switzerland
@@ -43,9 +46,7 @@ import ij.ImageJ;
 import ij.ImagePlus;
 import ij.Prefs;
 import ij.plugin.PlugIn;
-
-import java.io.File;
-import java.util.Vector;
+import ij.plugin.frame.Recorder;
 
 /**
  * ImageJ plugin implementation of Wid-U transmitted light to pseudofluorescence in wide migration chambers.
@@ -64,57 +65,59 @@ public class WidU implements PlugIn {
 
     @Override
 	public void run(String arg) {
-        // Check for existing configuration
+        // Check for existing configuration, otherwise open settings panel
         Boolean settingsok = Boolean.parseBoolean(Prefs.get("ch.irb.widu.settingsok", "false"));
         if (!settingsok) IJ.runPlugIn(WidUSettings.class.getName(), "");
 
+        // SSH variables
         String hostname = Prefs.get("ch.irb.widu.hostname", "localhost");
         Integer port = Integer.parseInt(Prefs.get("ch.irb.widu.port", "22"));
         String username = Prefs.get("ch.irb.widu.username", "");
         String cachefolder = Prefs.get("ch.irb.widu.cachefolder", "");
 
-        // Integer tilesizex = Integer.parseInt(Prefs.get("ch.irb.widu.tilesizex", "10"));
-        // Integer tilesizey = Integer.parseInt(Prefs.get("ch.irb.widu.tilesizey", "10"));
+        // Tile size in pixels
+        Integer[] tilesize = new Integer[]{
+            Integer.parseInt(Prefs.get("ch.irb.widu.tilesizex", "10")),
+            Integer.parseInt(Prefs.get("ch.irb.widu.tilesizey", "10")) 
+        };
 
-        // Load current image
-        //ImagePlus raw = IJ.getImage();
+        // // Load current image
+        // ImagePlus raw = IJ.getImage();
 
-        // Determine # of tiles x,y
-        // Integer width = raw.getWidth();
-        // Integer height = raw.getHeight();
+        // // Create blob with all tiles
+        // Blob rawblob  = Blob.createBlob(raw, tilesize);
+        // String id = rawblob.getID(); // UUID for job
 
-        // Integer ntilesx = width/tilesizex;
-        // Integer ntilesy = height/tilesizey;
+        // Establish SSH connection
+        SSHConnection ssh = new SSHConnection(hostname, port, username, cachefolder);
+        
+        // Debug
+        ssh.testsend();
 
-        // Vector<File> rawtiles  = createBlob();
+        // // Send blob to cachefolder
+        // ssh.sendBlob(rawblob);
 
-        SSHConnection ssh = new SSHConnection();
-        ssh.testsend(hostname, port, username, cachefolder);
-
-        /* TODO: manage exceptions if 
-            * 1. no space left on remote: delete all and terminate
-            * 2. no space left on local: delete all and terminate
-            * 3. segmentation aborts: delete all and terminate
-            * 4. connection lost: abort and exit
-        **/
-
-        // // TODO: send vector<file> through ssh
-        // ssh.sendBlob(rawtiles, cachefolder);
-
-        // // TODO: execute command to run Tensorflow
+        // // Runs segmentation with Tensorflow and waits for completion
+        // // TODO: define command
         // String command = "";
-        // ssh.exec(rawtiles, command);
+        // ssh.exec(id, command);
 
-        // // TODO: get back segmented files
-        // Vector<File> segmentedfiles = ssh.getremoteBlob(id);
+        // // Get back files
+        // Blob segmentedblob = ssh.getremoteBlob(id);
 
-        // // TODO: delete raw and segmented from server
+        // // Delete all files for process on server and close connection
         // ssh.deleteremoteBlob(id);
+        ssh.disconnect();
 
-        // // TODO: create back mosaic
-        // ImagePlus result = tileBlob(segmentedfiles);
+        // ImagePlus result = Blob.tileBlob(segmentedblob);
         // result.show();
 
+        // // TODO: macro calls
+        // if(!Recorder.record) {
+        //     IJ.error("Wid-U", "Command recorder is not running");
+        //     return;
+        // }
+        // Recorder.recordString("");
     }
 
     /**

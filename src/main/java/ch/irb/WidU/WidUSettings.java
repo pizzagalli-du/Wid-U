@@ -8,6 +8,9 @@
  * 
  *	  Institute for Research in Biomedicine
  *	  Switzerland
+*
+*    Graduate School for Cellular and Molecular Sciences,
+*    University of Bern, Switzerland
  *
  *    Euler Institute, Università della Svizzera Italiana,
  *    Switzerland
@@ -69,14 +72,21 @@ public class WidUSettings implements PlugIn {
     public void run(String arg) {
 
         if (showDialog()) {
-            if(auth == "RSA key") {
+            if(auth == "RSA key") 
                 getRSAPath();
-            }
+            
 
-            SSHConnection test = new SSHConnection();
-            test.testconnect(hostname, port, username);
+            if (testconnection())
+                IJ.log("Connection test OK. Settings saved.");
+
         }
 
+    }
+
+    private boolean testconnection() {
+        SSHConnection test = new SSHConnection(hostname, port, username, cachefolder);
+        test.disconnect();
+        return true;
     }
 
     /**
