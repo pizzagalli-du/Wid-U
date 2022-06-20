@@ -113,7 +113,7 @@ public class WidU implements PlugIn {
         // Runs segmentation with Tensorflow and waits for completion
         command  = command.replace(System.getProperty("file.separator"), "/");
         
-        if (ssh.exec(blob, command)) {
+        if (ssh.exec(blob, command)) { // true if execution works fine
 
             // Get back files
             ssh.getremoteBlob(blob);

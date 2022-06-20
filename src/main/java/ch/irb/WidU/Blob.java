@@ -222,11 +222,11 @@ public class Blob {
 
     }
 
-    /**
+    /*
      * Support function for reading pixels of a segmented remote image from a specified hashkey
      * and converting to a java image. 
      * 
-     * @param hashkey
+     * @param hashkey of tile
      * @return Java RGB image
      */
     private Image readSegmentedTile(String hashkey) {
@@ -287,10 +287,10 @@ public class Blob {
     /**
      * From ImageJ/ij/plugin/CanvasResizer.java
      * 
-     * @param ipOld
-     * @param wNew
-     * @param hNew
-     * @return
+     * @param ipOld image processor of old image
+     * @param wNew new image width
+     * @param hNew new image height
+     * @return image processor with new canvas size
      */
     public ImageProcessor canvasresize(ImageProcessor ipOld, int wNew, int hNew) {
         ImageProcessor ipNew = ipOld.createProcessor(wNew, hNew);

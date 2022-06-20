@@ -70,6 +70,7 @@ public class SSHConnection {
     private String folder;
 
     /**
+     * Initialize new SSH connection
      * 
      * @param hostname
      * @param port
@@ -86,8 +87,9 @@ public class SSHConnection {
     }
 
     /**
+     * Get an image blob of raw images and send it to remote folder called widu-UUID
      * 
-     * @param blob
+     * @param blob of raw images
      */
     public void sendBlob(Blob blob) {
 
@@ -128,9 +130,12 @@ public class SSHConnection {
     }
 
     /**
+     * Execute a segmentation command. Runs the command, and sends to ImageJ log all output
+     * Then checks every 5s if the file done.txt has been created.
      * 
-     * @param blob
-     * @param command
+     * @param blob to segment
+     * @param command to perform segmentation
+     * @return true if everything goes fine
      */
     public boolean exec(Blob blob, String command) {
 
@@ -219,6 +224,7 @@ public class SSHConnection {
     }
 
     /**
+     * Get segmented files from remote widu-UUID/results folder
      * 
      * @param blob
      */
@@ -259,8 +265,9 @@ public class SSHConnection {
     }
 
     /**
+     * Delete remote copy of blob
      * 
-     * @param inblob
+     * @param inblob to delete
      */
     public void deleteremoteBlob(Blob inblob) {
         Channel channel = null;
@@ -289,7 +296,7 @@ public class SSHConnection {
     }
 
     /*
-     * 
+     * Recursively delete all contents of a remote path
      */
     @SuppressWarnings("unchecked")
     private static void recursiveFolderDelete(ChannelSftp channelSftp, String path) throws SftpException {
@@ -322,7 +329,8 @@ public class SSHConnection {
         IJ.log("SSH connection terminated");
     }
   
-    /**
+    /*
+     * New session helper function
      * 
      * @param hostname
      * @param port
@@ -379,7 +387,7 @@ public class SSHConnection {
     }
 
     /*
-     * 
+     * Ask for passphrase if no RSA key is provided
      */
     private String promptPassphrase(String message){
         JTextField passphraseField=(JTextField)new JPasswordField(20);
@@ -395,10 +403,11 @@ public class SSHConnection {
     }
 
     /**
+     * Read image as a byte array from inputstream
      * 
      * @param inputStream
-     * @return
-     * @throws IOException
+     * @throws IOExpection
+     * @return byte array of image
      */
     public static byte[] readAllBytes(InputStream inputStream) throws IOException {
         final int bufLen = 4 * 0x400; // 4KB
