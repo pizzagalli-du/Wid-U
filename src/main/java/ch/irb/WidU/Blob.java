@@ -40,91 +40,264 @@
 **************************************************************************/
 package ch.irb.WidU;
 
-import java.io.File;
-import java.util.UUID;
-import java.util.Vector;
+import ij.*;
+import ij.measure.Calibration;
+import ij.plugin.HyperStackConverter;
+import ij.process.ImageConverter;
+import ij.process.ImageProcessor;
 
-import ij.ImagePlus;
+import java.awt.image.*;
+import java.awt.*;
+import java.io.*;
+import java.util.HashMap;
+import java.util.UUID;
+import javax.imageio.ImageIO;
 
 /**
- * This class creates the object Blob, which is composed of a vector of tiles
- * and an automatically-generated id.
+ * This class creates the object Blob, which is composed of an hashmap of tiles and their ids
+ * for the input image, a similar hashmap for the segmented image, an automatically-generated job id
+ * and properties related to those images.
  * 
  * @author Diego Morone
  */
 public class Blob {
 
-    private Vector<File> blobtiles;
+    private HashMap<String, byte[]> blobtiles;
+    private HashMap<String, byte[]> segmentedtiles;
     private String id;
+    private String title;
+    private Calibration calibration;
+    private Integer width;
+    private Integer height;
+    private Integer nFrames;
+    private Integer nSlices;
+    private Double magnification;
+    private Integer dstWidth;
+    private Integer dstHeight; 
+    private Integer ntilesx;
+    private Integer ntilesy;
+    final private Integer tilesize = 224; // Based on training tile size
+    final private Double referencepixelsize = 0.405; // Based on training pixel size
+    
 
     // Constructor
-    public Blob (Vector<File> blobtiles, String id) {
-        this.blobtiles = blobtiles;
-        this.id = id;
+    public Blob () {
+        this.blobtiles = new HashMap<String, byte[]>();
+        this.segmentedtiles= new HashMap<String, byte[]>();
+        this.id = generateID();
+    }
+
+    private String generateID() {
+        String newid = "widu-" + UUID.randomUUID().toString();
+        return newid;
     }
 
     public String getID() {
         return id;
     }
 
+    public HashMap<String, byte[]> getRawTiles() {
+        return blobtiles;
+    }
+
     /**
+     * Function upscales the image to a specified pixel size and creates tiles with defined tilesize.
+     * Remainder on the left and bottom corners is treated by increasing the canvas size with black pixels.
+     *  
+     * @param raw is the source image
+     */
+    public void populateBlob(ImagePlus raw) {
+
+        this.calibration = raw.getCalibration();
+        this.title = raw.getTitle();
+
+        // Determine # of tiles x,y
+        this.width = raw.getWidth();
+        this.height = raw.getHeight();
+        this.nFrames = raw.getNFrames();
+        this.nSlices = raw.getNSlices();
+
+        this.magnification = calibration.pixelWidth/referencepixelsize; 
+        this.dstWidth = (int)Math.ceil(magnification*width);
+        this.dstHeight = (int)Math.ceil(magnification*height);
+        this.ntilesx = ((int)(dstWidth/tilesize))+1;
+        this.ntilesy = ((int)(dstHeight/tilesize))+1;
+
+        ImageStack ims = raw.getImageStack();
+
+        // Rescale
+        for (int j = 1; j <= nFrames; j++ ) {
+            for (int i =1; i <= nSlices; i++) {
+                Integer index = raw.getStackIndex(1, i, j);
+                ImageProcessor rawp = ims.getProcessor(index);
+                rawp.setInterpolationMethod(ImageProcessor.BILINEAR);
+                rawp = rawp.resize(dstWidth, dstHeight);
+
+                rawp = canvasresize(rawp, ntilesx*tilesize, ntilesy*tilesize);
+
+                for (int w=0; w < tilesize*ntilesx; w = w + tilesize) { // Round to square sizes only
+                    for (int u=0; u < tilesize*ntilesy; u = u + tilesize) {
+
+                        rawp.setRoi(w, u, tilesize, tilesize);
+                        ImageProcessor cropped = rawp.crop();
+
+                        BufferedImage croppedImage = cropped.getBufferedImage();
+
+                        this.addRaw(saveAsPNG(croppedImage), index, w, u);
+
+                    }
+                }
+
+            }
+        }
+    }
+        
+    private void addRaw(byte[] f, Integer stackindex, Integer xtile, Integer ytile) {
+        String name = String.format("%4s-%4s-%4s.png", stackindex, xtile, ytile).replace(" ", "0"); // 0001-0000-0000.png
+        blobtiles.put(name, f);
+    }
+
+    /**
+     * This method stiches together the segmented images of a blob
      * 
-     * @param raw
-     * @param tilesize
+     * @return ImagePlus of the segmented image, with same dimensions and calibration as input image
+     */
+    public ImagePlus tileSegmentation() {
+
+        // Create an empty stack
+        ImageStack outstk = new ImageStack(width, height);
+
+        for (int i =1; i <= nFrames; i++) {
+            for (int j= 1; j <= nSlices; j++) {
+
+                Integer stackindex = (i-1)*nSlices + j ;
+
+                // Create back mosaic for this slice
+                BufferedImage outbi = new BufferedImage( dstWidth , dstHeight , BufferedImage.TYPE_INT_RGB);
+                Graphics2D g = (Graphics2D) outbi.getGraphics();
+             
+                for (int w=0; w < ntilesx; w++) { 
+                    for (int u=0; u < ntilesy; u++) {
+
+                        String key = String.format("%4s-%4s-%4s.png", stackindex, w*tilesize, u*tilesize).replace(" ", "0");
+                        Image tile = readSegmentedTile(key);
+                       
+                        g.drawImage(tile, w * tilesize, u * tilesize, null);
+                        
+                    }
+                }
+
+                g.dispose();
+
+                // Downscale slice
+                ImagePlus slice = new ImagePlus();
+                slice.setImage(outbi);
+                ImageProcessor slicep = slice.getProcessor();
+
+                slicep = canvasresize(slicep, dstWidth, dstHeight);
+
+                slicep.setInterpolationMethod(ImageProcessor.BILINEAR);
+                slicep = slicep.resize(width, height);
+                // Add the rescaled slice to stack
+                outstk.addSlice(slicep);
+                
+
+            }
+        }
+
+        ImagePlus out = new ImagePlus("WIDU_"+title, outstk);
+        ImageProcessor outp = out.getProcessor();
+
+        if (outp.getBitDepth()==24 && outp.isGrayscale()) {
+            new ImageConverter(out).convertToGray8();
+        }
+
+        // Set units and dimensions
+        if (nSlices * nFrames > 1) {
+            out = HyperStackConverter.toHyperStack(out, 1, nSlices, nFrames, "Color");
+        }
+        out.setCalibration(calibration);
+
+        return out;
+
+    }
+
+    /**
+     * Support function for reading pixels of a segmented remote image from a specified hashkey
+     * and converting to a java image. 
+     * 
+     * @param hashkey
+     * @return Java RGB image
+     */
+    private Image readSegmentedTile(String hashkey) {
+
+        Image out = null;
+
+        try {
+            if (segmentedtiles.containsKey(hashkey)) {
+                InputStream input = new ByteArrayInputStream(segmentedtiles.get(hashkey));
+                out = ImageIO.read(input);
+            } else throw new IOException("no key found");
+        } catch (IOException e) {
+            IJ.log(e.getMessage());
+        }
+
+        return out;
+    }
+
+    /*
+     * Support function for converting raw image to PNG,
+     * for use with U-Net segmentation
+     */
+    private static byte[] saveAsPNG(BufferedImage bi) {
+
+		ByteArrayOutputStream bos = new ByteArrayOutputStream();
+
+        try {
+            ImageIO.write(bi, "png", bos);
+        } catch (IOException e) {
+            IJ.error(e.getMessage());
+        }
+
+		byte [] data = bos.toByteArray();
+		return data;
+
+	}
+
+    /**
+     * Add tile from raw image to this blob
+     * 
+     * @param byte[] array of pixel values
+     * @param String name of the tile  
+     */
+    public void addRawTile (byte[] f, String name ) {
+        blobtiles.put(name, f);
+    }
+
+    /**
+     * Add tile from segmented image to this blob
+     * 
+     * @param byte[] array of pixel values
+     * @param String name of the tile  
+     */
+    public void addSegmentedTile(byte[] f, String name) {
+        segmentedtiles.put(name, f);
+    }
+
+    /**
+     * From ImageJ/ij/plugin/CanvasResizer.java
+     * 
+     * @param ipOld
+     * @param wNew
+     * @param hNew
      * @return
      */
-    public static Blob createBlob(ImagePlus raw, Integer[] tilesize) {
+    public ImageProcessor canvasresize(ImageProcessor ipOld, int wNew, int hNew) {
+        ImageProcessor ipNew = ipOld.createProcessor(wNew, hNew);
+		ipNew.setValue(0.0);
+		ipNew.fill();
+		ipNew.insert(ipOld, 0, 0);
+		return ipNew;
 
-        Blob blob =null;
-
-        // // Determine # of tiles x,y
-        // Integer width = raw.getWidth();
-        // Integer height = raw.getHeight();
-
-        // Integer ntilesx = width/tilesize[0];
-        // Integer ntilesy = height/tilesize[1];
-
-        // // TODO: create positions array for cropping
-        // ImagePlus tmp;
-        // File tmpfile;
-
-        // // TODO: upscale images
-
-        // // TODO: Iterator?
-        // raw.setRoi(x, y, w, h);
-        // tmp = raw.crop();
-
-        // // TODO: save tile to filestream as jpg compressed
-
-        // // TODO: convert imageplus to file?
-        //blob.add(tmpfile);
-
-        // blob.id = blob.generateID();
-
-        return blob;
-    }
-
-    public static ImagePlus tileBlob(Blob segmentedblob) {
-        // TODO: create back mosaic
-
-        // TODO: downscale
-        return null;
-    }
-
-    /**
-     * 
-     * @param tile
-     */
-    private void add(File tile) {
-        blobtiles.add(tile);
-    }
-
-    /**
-     * 
-     * @return
-     */
-    private String generateID() {
-        String newid = UUID.randomUUID().toString();
-        return newid;
     }
 }

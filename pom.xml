@@ -14,7 +14,7 @@
 
 	<groupId>ch.irb</groupId>
 	<artifactId>WidU</artifactId>
-	<version>0.1.0</version>
+	<version>1.0</version>
 
 	<name>WidU</name>
 	<description>Wid-U transmitted light to pseudofluorescence in wide migration chambers.</description>
@@ -116,9 +116,9 @@
             <groupId>com.jcraft</groupId>
             <artifactId>jsch</artifactId>
             <type>jar</type>
-        </dependency>
+        </dependency>	
     </dependencies>
-    <properties>
+	<properties>
 		<package-name>ch.irb.WidU</package-name>
 		<main-class>ch.irb.WidU.WidU</main-class>
 		<license.licenseName>gpl_3</license.licenseName>

@@ -46,7 +46,8 @@ import ij.ImageJ;
 import ij.ImagePlus;
 import ij.Prefs;
 import ij.plugin.PlugIn;
-import ij.plugin.frame.Recorder;
+import ij.process.ImageConverter;
+import ij.process.ImageProcessor;
 
 /**
  * ImageJ plugin implementation of Wid-U transmitted light to pseudofluorescence in wide migration chambers.
@@ -58,10 +59,14 @@ import ij.plugin.frame.Recorder;
  * - executes a command to perform U-Net segmentation
  * - sends back the images
  * - stiches the tiles into a segmented image 
+ * - restores image dimensions and calibrations
  * 
  * @author Diego Morone
  */
 public class WidU implements PlugIn {
+
+    int nSlices,nFrames, nChannels;
+    int chan, firstZ, lastZ, firstT, lastT;
 
     @Override
 	public void run(String arg) {
@@ -74,50 +79,55 @@ public class WidU implements PlugIn {
         Integer port = Integer.parseInt(Prefs.get("ch.irb.widu.port", "22"));
         String username = Prefs.get("ch.irb.widu.username", "");
         String cachefolder = Prefs.get("ch.irb.widu.cachefolder", "");
+        String command = Prefs.get("ch.irb.widu.command", "");
 
-        // Tile size in pixels
-        Integer[] tilesize = new Integer[]{
-            Integer.parseInt(Prefs.get("ch.irb.widu.tilesizex", "10")),
-            Integer.parseInt(Prefs.get("ch.irb.widu.tilesizey", "10")) 
-        };
+        // Load current image
+        ImagePlus raw = IJ.getImage();
+        ImageProcessor rawp = raw.getProcessor();
 
-        // // Load current image
-        // ImagePlus raw = IJ.getImage();
+        if (rawp.getBitDepth() ==24) {
+            if (rawp.isGrayscale()) {
+                new ImageConverter(raw).convertToGray8();
+            } else {
+                IJ.error("RGB color images not supported. Please use grayscale or RGB single color images.");
+                return;
+            }
+        }
 
-        // // Create blob with all tiles
-        // Blob rawblob  = Blob.createBlob(raw, tilesize);
-        // String id = rawblob.getID(); // UUID for job
+        // Create blob with all tiles
+        Blob blob = new Blob();
+
+        // Upscale and split image in tiles
+        try {
+            blob.populateBlob(raw);
+        } catch (Exception e) {
+            IJ.error(e.getMessage());
+        }
 
         // Establish SSH connection
         SSHConnection ssh = new SSHConnection(hostname, port, username, cachefolder);
         
-        // Debug
-        ssh.testsend();
+        // Send blob to cachefolder
+        ssh.sendBlob(blob);
 
-        // // Send blob to cachefolder
-        // ssh.sendBlob(rawblob);
+        // Runs segmentation with Tensorflow and waits for completion
+        command  = command.replace(System.getProperty("file.separator"), "/");
+        
+        if (ssh.exec(blob, command)) {
 
-        // // Runs segmentation with Tensorflow and waits for completion
-        // // TODO: define command
-        // String command = "";
-        // ssh.exec(id, command);
+            // Get back files
+            ssh.getremoteBlob(blob);
 
-        // // Get back files
-        // Blob segmentedblob = ssh.getremoteBlob(id);
+            // Perform tiling and show segmented image
+            ImagePlus result = blob.tileSegmentation();
+            result.show();
 
-        // // Delete all files for process on server and close connection
-        // ssh.deleteremoteBlob(id);
+            // Delete all files for process on server and close connection
+            ssh.deleteremoteBlob(blob);
+        }
+
         ssh.disconnect();
 
-        // ImagePlus result = Blob.tileBlob(segmentedblob);
-        // result.show();
-
-        // // TODO: macro calls
-        // if(!Recorder.record) {
-        //     IJ.error("Wid-U", "Command recorder is not running");
-        //     return;
-        // }
-        // Recorder.recordString("");
     }
 
     /**

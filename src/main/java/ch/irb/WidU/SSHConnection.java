@@ -45,7 +45,13 @@ import ij.IJ;
 import ij.Prefs;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Paths;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.swing.JOptionPane;
 import javax.swing.JPasswordField;
@@ -54,7 +60,7 @@ import javax.swing.JTextField;
 import com.jcraft.jsch.*;
 
 /**
- * Utilities for SSH connection, sending images and testing connection
+ * Utilities for SSH connection, sending images, running commands and testing connection
  * 
  * @author Diego Morone
  */
@@ -63,6 +69,13 @@ public class SSHConnection {
     private Session session;
     private String folder;
 
+    /**
+     * 
+     * @param hostname
+     * @param port
+     * @param username
+     * @param folder
+     */
     public SSHConnection(String hostname, Integer port, String username, String folder) {
         try{ 
             this.session = newsession(hostname, port, username);
@@ -72,14 +85,16 @@ public class SSHConnection {
         this.folder = folder;
     }
 
+    /**
+     * 
+     * @param blob
+     */
     public void sendBlob(Blob blob) {
 
         Channel channel = null;
         ChannelSftp channelSftp = null;
 
-        String s = "test\n";
-        String remotepath = "test.txt";
-        InputStream send = new ByteArrayInputStream(s.getBytes());
+        String rawfolder = Paths.get(this.folder, blob.getID()).toString().replace(System.getProperty("file.separator"), "/"); 
 
         try {
             
@@ -87,13 +102,17 @@ public class SSHConnection {
             channel.connect();
     
             channelSftp = (ChannelSftp) channel;
-              
-            channelSftp.cd(folder);
+            
+            channelSftp.mkdir(rawfolder);
+            channelSftp.cd(rawfolder); 
 
-            // TODO: send vector<file> through ssh
-            // TODO: no space left on remote: delete all and terminate
-
-            channelSftp.put(send, remotepath);
+            HashMap<String, byte[]> blobtiles = blob.getRawTiles();
+            for (Map.Entry<String, byte[]> entry : blobtiles.entrySet()) {
+                String remotepath =  Paths.get(rawfolder, entry.getKey()).toString().replace(System.getProperty("file.separator"), "/");
+                IJ.log("Sending file: " + entry.getKey());
+                ByteArrayInputStream f = new ByteArrayInputStream(entry.getValue());
+                channelSftp.put(f, remotepath);
+            }
 
         } catch (Exception e) {
             IJ.error("Wid-U", "File transfer test failed. Error: "+ e.getMessage());
@@ -103,90 +122,111 @@ public class SSHConnection {
             channel.disconnect();
             IJ.log("Channel disconnected.");
         }
-        IJ.log("File sent OK");
+        IJ.log("Files sent OK");
 
 
-    }
-
-    public void exec(String id, String command) {
-        // TODO: execute command to run Tensorflow
-        // TODO: segmentation aborts: delete all and terminate
-        // TODO: every 5s check for file UUID.done. If there, collect segmented files
-        
-    }
-
-    public void deleteremoteBlob(String id) {
-        Channel channel = null;
-        ChannelSftp channelSftp = null;
-
-        String remotepath = "test.txt";
-
-        try {
-            
-            channel = session.openChannel("sftp");
-            channel.connect();
-    
-            channelSftp = (ChannelSftp) channel;
-              
-            channelSftp.cd(folder);
-
-            // TODO: rm vector<file> through ssh
-
-            channelSftp.rm(remotepath);
-
-        } catch (Exception e) {
-            IJ.error("Wid-U", "File transfer test failed. Error: "+ e.getMessage());
-        } finally {
-            channelSftp.exit();
-            IJ.log("SFTP Channel exited.");
-            channel.disconnect();
-            IJ.log("Channel disconnected.");
-        }
-        IJ.log("File sent OK");
-    }
-
-    public Blob getremoteBlob(String id) {
-        Blob blob = null;
-        Channel channel = null;
-        ChannelSftp channelSftp = null;
-
-        try {
-            
-            channel = session.openChannel("sftp");
-            channel.connect();
-    
-            channelSftp = (ChannelSftp) channel;
-              
-            channelSftp.cd(folder);
-
-            // TODO: send vector<file> through ssh
-            //channelSftp.get();
-
-        } catch (Exception e) {
-            IJ.error("Wid-U", "File transfer test failed. Error: "+ e.getMessage());
-        } finally {
-            channelSftp.exit();
-            IJ.log("SFTP Channel exited.");
-            channel.disconnect();
-            IJ.log("Channel disconnected.");
-        }
-        IJ.log("File sent OK");
-        return blob;
     }
 
     /**
      * 
-     * @param remotefolder
-     * @return
+     * @param blob
+     * @param command
      */
-    public boolean testsend() {
+    public boolean exec(Blob blob, String command) {
+
+        StringBuilder outputBuffer = new StringBuilder();
 
         Channel channel = null;
         ChannelSftp channelSftp = null;
+        ChannelExec channelExec = null;
 
-        String s = "test\n";
-        String remotepath = "test.txt";
-        InputStream send = new ByteArrayInputStream(s.getBytes());
+        String blobfolder = Paths.get(this.folder, blob.getID()).toString().replace(System.getProperty("file.separator"), "/"); 
+        command = command + " " + blobfolder + "/";
+        IJ.log(String.format("Running %s", command));
+
+        Boolean waitmore = true;
+
+        try {
+            
+            channel = session.openChannel("exec");
+            channelExec = ((ChannelExec) channel);
+            IJ.log("Add process to job queue");
+
+            channelExec.setCommand(command);
+            InputStream commandOutput = channel.getInputStream();
+
+            channel.connect();
+            int readByte = commandOutput.read();
+
+            while(readByte != 0xffffffff) {
+                outputBuffer.append((char)readByte);
+                readByte = commandOutput.read();
+            }
+
+            while(true){
+                if(channelExec.isClosed()){
+                    break;
+                }
+            }
+        } catch (IOException e) {
+            IJ.error("Wid-U", e.getMessage());
+        } catch (JSchException je) {
+            IJ.error("Wid-U", je.getMessage());
+        } finally {
+            IJ.log(outputBuffer.toString());
+            channel.disconnect();
+        }
+
+        // Every 5s check for file UUID/done.txt. If there, collect segmented files
+        try {
+            
+            channel = session.openChannel("sftp");
+            channel.connect();
+    
+            channelSftp = (ChannelSftp) channel;
+
+            channelSftp.cd(blobfolder);
+
+            String path = Paths.get(this.folder, blob.getID(), "done.txt").toString().replace(System.getProperty("file.separator"), "/");
+            
+            while (waitmore) {
+                try{Thread.sleep(5000);}catch(Exception ee){} // wait 5s
+                IJ.log("Please wait...");
+
+                try {
+                    channelSftp.lstat(path);
+                    waitmore = false;
+                } catch (SftpException e){
+                    if(e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE){
+                       waitmore = true;
+                    } else {
+                        // something else went wrong
+                        throw e;
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            IJ.error("Wid-U", "Command run failed. Error: "+ e.getMessage());
+        } finally {
+            channelSftp.exit();
+            channel.disconnect();
+            IJ.log("Segmentation OK");
+        }
+
+        return true;
+        
+    }
+
+    /**
+     * 
+     * @param blob
+     */
+    public void getremoteBlob(Blob blob) {
+        Channel channel = null;
+        ChannelSftp channelSftp = null;
+
+        String segmentedfolder = Paths.get(this.folder, blob.getID(), "results").toString().replace(System.getProperty("file.separator"), "/");
 
         try {
             
@@ -195,9 +235,17 @@ public class SSHConnection {
     
             channelSftp = (ChannelSftp) channel;
               
-            channelSftp.cd(folder);
-            channelSftp.put(send, remotepath);
-            channelSftp.rm(remotepath);
+            channelSftp.cd(segmentedfolder); 
+
+            HashMap<String, byte[]> blobtiles = blob.getRawTiles();
+            for (Map.Entry<String, byte[]> entry : blobtiles.entrySet()) {
+                String key = entry.getKey();
+                String remotepath =  Paths.get(segmentedfolder, key).toString().replace(System.getProperty("file.separator"), "/");
+                IJ.log("Receiving file: " + key);
+                InputStream f  = channelSftp.get(remotepath);
+                byte[] tmp = readAllBytes(f);
+                blob.addSegmentedTile(tmp, key);
+            }
 
         } catch (Exception e) {
             IJ.error("Wid-U", "File transfer test failed. Error: "+ e.getMessage());
@@ -207,8 +255,63 @@ public class SSHConnection {
             channel.disconnect();
             IJ.log("Channel disconnected.");
         }
-        IJ.log("File sent OK");
-        return true;
+        IJ.log("Files received OK");
+    }
+
+    /**
+     * 
+     * @param inblob
+     */
+    public void deleteremoteBlob(Blob inblob) {
+        Channel channel = null;
+        ChannelSftp channelSftp = null;
+
+        String path = Paths.get(this.folder, inblob.getID()).toString().replace(System.getProperty("file.separator"), "/");
+
+        try {
+            
+            channel = session.openChannel("sftp");
+            channel.connect();
+    
+            channelSftp = (ChannelSftp) channel;
+              
+            recursiveFolderDelete(channelSftp, path);
+
+        } catch (Exception e) {
+            IJ.error("Wid-U", "File transfer test failed. Error: "+ e.getMessage());
+        } finally {
+            channelSftp.exit();
+            IJ.log("SFTP Channel exited.");
+            channel.disconnect();
+            IJ.log("Channel disconnected.");
+        }
+        IJ.log("Files deleted OK");
+    }
+
+    /*
+     * 
+     */
+    @SuppressWarnings("unchecked")
+    private static void recursiveFolderDelete(ChannelSftp channelSftp, String path) throws SftpException {
+    
+        // List source directory structure.
+        Collection<ChannelSftp.LsEntry> fileAndFolderList = channelSftp.ls(path);
+    
+        // Iterate objects in the list to get file/folder names.
+        for (ChannelSftp.LsEntry item : fileAndFolderList) {
+            if (!item.getAttrs().isDir()) {
+                channelSftp.rm(path + "/" + item.getFilename()); // Remove file.
+            } else if (!(".".equals(item.getFilename()) || "..".equals(item.getFilename()))) { // If it is a subdir.
+                try {
+                    // removing sub directory.
+                    channelSftp.rmdir(path + "/" + item.getFilename());
+                } catch (Exception e) { // If subdir is not empty and error occurs.
+                    // Do lsFolderRemove on this subdir to enter it and clear its contents.
+                    recursiveFolderDelete(channelSftp, path + "/" + item.getFilename());
+                }
+            }
+        }
+        channelSftp.rmdir(path); // delete the parent directory after empty
     }
 
     /**
@@ -275,6 +378,9 @@ public class SSHConnection {
 
     }
 
+    /*
+     * 
+     */
     private String promptPassphrase(String message){
         JTextField passphraseField=(JTextField)new JPasswordField(20);
         String passphrase = null;
@@ -288,4 +394,35 @@ public class SSHConnection {
         return passphrase;
     }
 
+    /**
+     * 
+     * @param inputStream
+     * @return
+     * @throws IOException
+     */
+    public static byte[] readAllBytes(InputStream inputStream) throws IOException {
+        final int bufLen = 4 * 0x400; // 4KB
+        byte[] buf = new byte[bufLen];
+        int readLen;
+        IOException exception = null;
+   
+        try {
+            try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+                while ((readLen = inputStream.read(buf, 0, bufLen)) != -1)
+                    outputStream.write(buf, 0, readLen);
+   
+                return outputStream.toByteArray();
+            }
+        } catch (IOException e) {
+            exception = e;
+            throw e;
+        } finally {
+            if (exception == null) inputStream.close();
+            else try {
+                inputStream.close();
+            } catch (IOException e) {
+                exception.addSuppressed(e);
+            }
+        }
+    }
 }

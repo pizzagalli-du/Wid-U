@@ -56,14 +56,13 @@ import java.awt.Font;
  * @author Diego Morone
  */
 public class WidUSettings implements PlugIn {
-    public final String VERSION="0.1.0";
+    public final String VERSION="1.0";
 
     String hostname;
     Integer port;
     String username ;
     String cachefolder;
-    Integer tilesizex;
-    Integer tilesizey;
+    String command;
     String auth;
 
     String path = null;
@@ -79,6 +78,8 @@ public class WidUSettings implements PlugIn {
             if (testconnection())
                 IJ.log("Connection test OK. Settings saved.");
 
+        } else {
+            return;
         }
 
     }
@@ -102,33 +103,31 @@ public class WidUSettings implements PlugIn {
         gd.addNumericField("Port", Integer.parseInt(Prefs.get("ch.irb.widu.port", "22")), 0);  
         gd.addStringField("Username", Prefs.get("ch.irb.widu.username", ""), 30);
         gd.addStringField("Cache folder", Prefs.get("ch.irb.widu.cachefolder", ""), 30);
-        gd.addNumericField("Tile size x", Integer.parseInt(Prefs.get("ch.irb.widu.tilesizex", "10")), 0);
-        gd.addNumericField("Tile size y", Integer.parseInt(Prefs.get("ch.irb.widu.tilesizey", "10")), 0);
+        gd.addStringField("Command", Prefs.get("ch.irb.widu.command", ""), 30);
+
 
         String[] auths = new String[]{"RSA key", "Password"};
         gd.addChoice("Authentication method", auths, Prefs.get("ch.irb.widu.auth", "Password"));
 
 		Font citationFont = new Font("Arial", Font.PLAIN, 10);
-
-		// TODO: add doi 
-		gd.addMessage("Please cite Antonello et al., 2022\ndoi: xxxxxxx", citationFont);
+		gd.addMessage("Please cite Antonello et al., 2022\ndoi: xxxxxxx", citationFont); // TODO: add doi
 
         gd.showDialog();
+        if(gd.wasCanceled())
+            return false;
 
         hostname = gd.getNextString();
         port = (int)gd.getNextNumber();
         username = gd.getNextString();
         cachefolder = gd.getNextString();
-        tilesizex = (int)gd.getNextNumber();
-        tilesizey = (int)gd.getNextNumber();
+        command = gd.getNextString();
         auth = gd.getNextChoice();
 
         Prefs.set("ch.irb.widu.hostname", hostname);
         Prefs.set("ch.irb.widu.port", Integer.toString(port));
         Prefs.set("ch.irb.widu.username", username);
         Prefs.set("ch.irb.widu.cachefolder", cachefolder);
-        Prefs.set("ch.irb.widu.tilesizex", Integer.toString(tilesizex));
-        Prefs.set("ch.irb.widu.tilesizey", Integer.toString(tilesizey));
+        Prefs.set("ch.irb.widu.command", command);
         Prefs.set("ch.irb.widu.auth", auth);
 
         Prefs.set("ch.irb.widu.settingsok", "true");
