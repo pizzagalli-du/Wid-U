@@ -92,10 +92,23 @@ public class Blob {
         return newid;
     }
 
+    /**
+     * Simple method to return the associated UUID for a blob
+     * 
+     * @return String   UUID
+     */
     public String getID() {
         return id;
     }
 
+    /**
+     * This method return an hashamp of tiles for the raw (unsegmented) image. 
+     * Unique names correspond to filenames and are in the form 
+     * <stack index>-<x position>-<y position>.png with 4 leading zeros. 
+     * For example: 0001-0224-0244.png
+     * 
+     * @return HashMap<String, byte[]>  hashmap of tiles with their unique name
+     */
     public HashMap<String, byte[]> getRawTiles() {
         return blobtiles;
     }
@@ -103,6 +116,8 @@ public class Blob {
     /**
      * Function upscales the image to a specified pixel size and creates tiles with defined tilesize.
      * Remainder on the left and bottom corners is treated by increasing the canvas size with black pixels.
+     * <p>
+     * Tiles are then added to the blob
      *  
      * @param raw is the source image
      */
@@ -125,17 +140,21 @@ public class Blob {
 
         ImageStack ims = raw.getImageStack();
 
-        // Rescale
         for (int j = 1; j <= nFrames; j++ ) {
             for (int i =1; i <= nSlices; i++) {
+                // get stack index
                 Integer index = raw.getStackIndex(1, i, j);
                 ImageProcessor rawp = ims.getProcessor(index);
+
+                // Rescale
                 rawp.setInterpolationMethod(ImageProcessor.BILINEAR);
                 rawp = rawp.resize(dstWidth, dstHeight);
 
-                rawp = canvasresize(rawp, ntilesx*tilesize, ntilesy*tilesize);
+                //add black pixels on right and bottom to fit in 224x244 format
+                rawp = canvasresize(rawp, ntilesx*tilesize, ntilesy*tilesize); 
 
-                for (int w=0; w < tilesize*ntilesx; w = w + tilesize) { // Round to square sizes only
+                // do the crops
+                for (int w=0; w < tilesize*ntilesx; w = w + tilesize) {
                     for (int u=0; u < tilesize*ntilesy; u = u + tilesize) {
 
                         rawp.setRoi(w, u, tilesize, tilesize);
@@ -143,7 +162,7 @@ public class Blob {
 
                         BufferedImage croppedImage = cropped.getBufferedImage();
 
-                        this.addRaw(saveAsPNG(croppedImage), index, w, u);
+                        this.addRaw(saveAsPNG(croppedImage), index, w, u); //add as PNG to this blob
 
                     }
                 }
@@ -160,7 +179,8 @@ public class Blob {
     /**
      * This method stiches together the segmented images of a blob
      * 
-     * @return ImagePlus of the segmented image, with same dimensions and calibration as input image
+     * @return  ImagePlus of the segmented image, with same dimensions and calibration as input image
+     * @see     ImagePlus
      */
     public ImagePlus tileSegmentation() {
 
@@ -182,7 +202,7 @@ public class Blob {
                         String key = String.format("%4s-%4s-%4s.png", stackindex, w*tilesize, u*tilesize).replace(" ", "0");
                         Image tile = readSegmentedTile(key);
                        
-                        g.drawImage(tile, w * tilesize, u * tilesize, null);
+                        g.drawImage(tile, w * tilesize, u * tilesize, null); // this creates an RGB, but we will convert to 8bit later
                         
                     }
                 }
@@ -194,10 +214,13 @@ public class Blob {
                 slice.setImage(outbi);
                 ImageProcessor slicep = slice.getProcessor();
 
+                // Throw away the black pixels on right and bottom sides (see populate blob)
                 slicep = canvasresize(slicep, dstWidth, dstHeight);
 
+                // Resize
                 slicep.setInterpolationMethod(ImageProcessor.BILINEAR);
                 slicep = slicep.resize(width, height);
+                
                 // Add the rescaled slice to stack
                 outstk.addSlice(slicep);
                 
@@ -205,9 +228,11 @@ public class Blob {
             }
         }
 
+        // Convert stack to ImagePlus
         ImagePlus out = new ImagePlus("WIDU_"+title, outstk);
         ImageProcessor outp = out.getProcessor();
 
+        // Convert RGB imageplus to 8bit
         if (outp.getBitDepth()==24 && outp.isGrayscale()) {
             new ImageConverter(out).convertToGray8();
         }

@@ -70,11 +70,12 @@ public class WidUSettings implements PlugIn {
     @Override
     public void run(String arg) {
 
-        if (showDialog()) {
+        if (showDialog()) { // if we show dialog and Cancel button is not pressed
+            // set RSA key if specified in the dialog
             if(auth == "RSA key") 
                 getRSAPath();
             
-
+            // finally test connection
             if (testconnection())
                 IJ.log("Connection test OK. Settings saved.");
 
@@ -85,6 +86,7 @@ public class WidUSettings implements PlugIn {
     }
 
     private boolean testconnection() {
+        // Open new connection. This constructor shows error if something goes wrong
         SSHConnection test = new SSHConnection(hostname, port, username, cachefolder);
         test.disconnect();
         return true;

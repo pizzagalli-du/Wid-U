@@ -72,10 +72,10 @@ public class SSHConnection {
     /**
      * Initialize new SSH connection
      * 
-     * @param hostname
-     * @param port
-     * @param username
-     * @param folder
+     * @param hostname  URL or IP to connect to
+     * @param port      SSH port
+     * @param username  SSH username
+     * @param folder    Set this as the cachefolder. Stored in the object for later usage
      */
     public SSHConnection(String hostname, Integer port, String username, String folder) {
         try{ 
@@ -89,13 +89,14 @@ public class SSHConnection {
     /**
      * Get an image blob of raw images and send it to remote folder called widu-UUID
      * 
-     * @param blob of raw images
+     * @param blob  raw images. See Blob.java
      */
     public void sendBlob(Blob blob) {
 
         Channel channel = null;
         ChannelSftp channelSftp = null;
 
+        // send files here. Composed with cachefolder + blob UUID
         String rawfolder = Paths.get(this.folder, blob.getID()).toString().replace(System.getProperty("file.separator"), "/"); 
 
         try {
@@ -133,9 +134,9 @@ public class SSHConnection {
      * Execute a segmentation command. Runs the command, and sends to ImageJ log all output
      * Then checks every 5s if the file done.txt has been created.
      * 
-     * @param blob to segment
-     * @param command to perform segmentation
-     * @return true if everything goes fine
+     * @param   blob    blob to segment
+     * @param   command command to perform segmentation
+     * @return  true    returns true if everything goes fine
      */
     public boolean exec(Blob blob, String command) {
 
@@ -151,6 +152,7 @@ public class SSHConnection {
 
         Boolean waitmore = true;
 
+        // First send out the command and read the output buffer
         try {
             
             channel = session.openChannel("exec");
@@ -182,7 +184,7 @@ public class SSHConnection {
             channel.disconnect();
         }
 
-        // Every 5s check for file UUID/done.txt. If there, collect segmented files
+        // When command is completed, check every 5s for file UUID/done.txt. If there, returns true
         try {
             
             channel = session.openChannel("sftp");
@@ -224,9 +226,10 @@ public class SSHConnection {
     }
 
     /**
-     * Get segmented files from remote widu-UUID/results folder
+     * Get segmented files from remote widu-UUID/results folder. Info such as UUID are retrieved from blob.
+     * Segmented images are stored in the same blob.
      * 
-     * @param blob
+     * @param blob  blob object to get and put info to
      */
     public void getremoteBlob(Blob blob) {
         Channel channel = null;
@@ -265,9 +268,9 @@ public class SSHConnection {
     }
 
     /**
-     * Delete remote copy of blob
+     * Delete remote copy of blob folder from cache folder
      * 
-     * @param inblob to delete
+     * @param inblob    easy way to get the foldername to delete
      */
     public void deleteremoteBlob(Blob inblob) {
         Channel channel = null;
@@ -296,7 +299,7 @@ public class SSHConnection {
     }
 
     /*
-     * Recursively delete all contents of a remote path
+     * Helper function for recursive delete all contents of a remote path
      */
     @SuppressWarnings("unchecked")
     private static void recursiveFolderDelete(ChannelSftp channelSftp, String path) throws SftpException {
@@ -322,7 +325,7 @@ public class SSHConnection {
     }
 
     /**
-     * Disconnect open session
+     * Disconnect open session and logs to IJ log
      */
     public void disconnect() {
         session.disconnect();
@@ -405,9 +408,9 @@ public class SSHConnection {
     /**
      * Read image as a byte array from inputstream
      * 
-     * @param inputStream
-     * @throws IOExpection
-     * @return byte array of image
+     * @param   inputStream
+     * @throws  IOExpection
+     * @return  byte array of image
      */
     public static byte[] readAllBytes(InputStream inputStream) throws IOException {
         final int bufLen = 4 * 0x400; // 4KB
