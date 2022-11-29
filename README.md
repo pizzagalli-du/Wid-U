@@ -1,5 +1,7 @@
 # Wid-U, tracking of unlabeled cells in wide migration chambers via pseudofluorescence
 
+code will be available upon publication of the associated scientific paper
+
 This is the binary of the Wid-U plugin for Fiji.
 
 This plugin requires a server running Tensorflow. The files for setting up this server, together with the U-Net training file, can be found in the releases
