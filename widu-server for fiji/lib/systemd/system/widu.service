@@ -1,0 +1,11 @@
+[Unit]
+Description=Wid-U server
+DefaultDependencies=no
+
+[Service]
+Type=simple
+User=widu
+ExecStart=/home/widu/server.sh
+
+[Install]
+WantedBy=multi-user.target
